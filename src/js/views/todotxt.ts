@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2013 Martin Gill
+ * Copyright (C) 2013 Martin Gill, Anderson Nishihara
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -35,16 +35,16 @@
 /// <reference path="../views/importing.ts" />
 /// <reference path="../views/exporting.ts" />
 
-module TodoTxtJs.View
-{
-    export class Main
-    {
-        public version : KnockoutObservable<string>;
-        public title : KnockoutComputed<string>;
+module TodoTxtJs.View {
+    export class Main {
+        public version: KnockoutObservable<string>;
+        public title: KnockoutComputed<string>;
         public allTodos: KnockoutComputed<Todo[]>;
         public priorities: KnockoutComputed<string[]>;
         public projects: KnockoutComputed<string[]>;
         public contexts: KnockoutComputed<string[]>;
+        public tags: KnockoutComputed<string[]>;
+        public gtdTags: KnockoutComputed<string[]>;
 
         public newPriorityFilter: KnockoutObservable<string>;
 
@@ -67,16 +67,17 @@ module TodoTxtJs.View
         private _todoManager: TodoManager;
         private static _queryStringParams: any;
 
-        constructor()
-        {
+        constructor() {
             this._todoManager = new TodoTxtJs.TodoManager();
 
-            this._title = ko.observable<string>("TodoTxtJs");
+            this._title = ko.observable<string>("TodoTxtJs - Nishihara");
             this.version = ko.observable<string>("1.4.3");
-            this.allTodos = ko.computed({owner: this, read: this._getAllTodos});
-            this.priorities = ko.computed({owner: this, read: this._getAllPriorities});
-            this.projects = ko.computed({owner: this, read: this._getAllProjects});
-            this.contexts = ko.computed({owner: this, read: this._getAllContexts});
+            this.allTodos = ko.computed({ owner: this, read: this._getAllTodos });
+            this.priorities = ko.computed({ owner: this, read: this._getAllPriorities });
+            this.projects = ko.computed({ owner: this, read: this._getAllProjects });
+            this.contexts = ko.computed({ owner: this, read: this._getAllContexts });
+            this.tags = ko.computed({ owner: this, read: this._getAllTags });
+            this.gtdTags = ko.computed({ owner: this, read: this._getGtdTags });
 
             this.newPriorityFilter = ko.observable(undefined);
 
@@ -93,8 +94,7 @@ module TodoTxtJs.View
             this.title = ko.computed(
                 {
                     owner: this,
-                    read: ()=>
-                    {
+                    read: () => {
                         if (!this.filtered()) return this._title();
                         else return this._title() + " (filtered)";
                     }
@@ -116,23 +116,19 @@ module TodoTxtJs.View
             this._applyQueryString();
         }
 
-        public removeTodo(element:HTMLElement) : void
-        {
+        public removeTodo(element: HTMLElement): void {
             var index = parseInt($(element).parents(".todo").find(".todo-view-index").text(), 10);
             TodoTxtJs.Events.onRemove();
             this._todoManager.remove(index);
             this.saveOnChange();
         }
 
-        public formatDate(date:string):string
-        {
-            if (date)
-            {
+        public formatDate(date: string): string {
+            if (date) {
                 var _date = new Date(date);
                 return DateTime.dateToInformalString(_date);
             }
-            else
-            {
+            else {
                 return null;
             }
         }
@@ -140,26 +136,22 @@ module TodoTxtJs.View
         /**
          * Alias for load.
          */
-        public refresh() : void
-        {
+        public refresh(): void {
             this.load();
         }
 
-        public save = () : void =>
-        {
+        public save = (): void => {
             $.jGrowl("Saving to " + this.options.storage() + "...");
 
-            var onSuccess = () =>
-            {
+            var onSuccess = () => {
                 this.lastUpdated("Last Saved: " + DateTime.toISO8601DateTime(new Date()));
                 $.jGrowl("Saved");
                 TodoTxtJs.Events.onSaveComplete(this.options.storage());
             };
 
-            var onError = (error) =>
-            {
+            var onError = (error) => {
                 $.jGrowl(error, { header: "Error Saving", sticky: true });
-                this.lastUpdated("Error: [" + error  +  "]");
+                this.lastUpdated("Error: [" + error + "]");
                 TodoTxtJs.Events.onError("Error Saving (" + this.options.storage() + ") : [" + error + "]");
             };
 
@@ -167,21 +159,17 @@ module TodoTxtJs.View
             this.displayOptions.save();
         };
 
-        public load() : void
-        {
-            if (Main.getQueryString("defaults"))
-            {
+        public load(): void {
+            if (Main.getQueryString("defaults")) {
                 this.options.save();
                 this.displayOptions.save();
             }
-            else
-            {
+            else {
                 this.options.load();
                 this.displayOptions.load();
             }
 
-            var onSuccess = (data) : void =>
-            {
+            var onSuccess = (data): void => {
                 this._todoManager.removeAll();
                 this._todoManager.loadFromStringArray(data);
                 this.lastUpdated("Last Loaded: " + DateTime.toISO8601DateTime(new Date()));
@@ -189,37 +177,37 @@ module TodoTxtJs.View
                 TodoTxtJs.Events.onLoadComplete(this.options.storage());
             };
 
-            var onError = (error) : void =>
-            {
+            var onError = (error): void => {
                 $.jGrowl(error, { header: "Error loading", sticky: true });
                 TodoTxtJs.Events.onError("Error Loading (" + this.options.storage() + ") : [" + error + "]");
             };
 
-            if (typeof(Storage) !== "undefined")
-            {
+            if (typeof (Storage) !== "undefined") {
                 $.jGrowl("Loading from " + this.options.storage() + "...");
                 this.options.storageInfo().load(onSuccess, onError);
             }
         }
 
-        public addNewTodo(): void
-        {
+        public addNewTodo(): void {
             var source = this.newTodoText();
-            if (source == null || source.trim().length == 0)
-            {
+            if (source == null || source.trim().length == 0) {
                 return;
             }
 
             var todo = new TodoTxtJs.Todo(source);
-            if (this.options.addCreatedDate())
-            {
-                if (!todo.createdDate())
-                {
+            if (this.options.addCreatedDate()) {
+                if (!todo.createdDate()) {
                     var date = new Date();
                     todo.createdDate(DateTime.toISO8601Date(date));
                 }
             }
 
+            if (this.options.useGtd()) {
+                if (todo.tags.length === 0) {
+                    todo.addTag("inbox");
+                }
+            }
+            
             TodoTxtJs.Events.onNew();
             this._todoManager.add(todo);
             this.newTodoText("");
@@ -230,25 +218,21 @@ module TodoTxtJs.View
          * Uses the save on change option to determine if
          * the current contents should be saved.
          */
-        public saveOnChange() : void
-        {
+        public saveOnChange(): void {
             console.log("saveOnChange");
-            if (this.options.saveOnChange())
-            {
+            if (this.options.saveOnChange()) {
                 console.log("saveOnChange_saving");
                 this.save();
             }
         }
 
-        public onCompleteClick = (data, event) : boolean =>
-        {
+        public onCompleteClick = (data, event): boolean => {
             this.saveOnChange();
             // Ensure event is processed by other handlers as well
             return true;
         };
 
-        public clearFilters(): void
-        {
+        public clearFilters(): void {
             this.filters("");
         }
 
@@ -257,11 +241,9 @@ module TodoTxtJs.View
          * text of the specified HTMLElement.
          * @param newFilter The HTMLElement that contains the new filter value.
          */
-        public addFilterFromElement(newFilter: HTMLElement) : void
-        {
+        public addFilterFromElement(newFilter: HTMLElement): void {
             var filterText = $(newFilter).text();
-            if (filterText.length == 1)
-            {
+            if (filterText.length == 1) {
                 filterText = '(' + filterText + ')';
             }
             this.addFilter(filterText);
@@ -271,16 +253,13 @@ module TodoTxtJs.View
          * Adds a new filter term to the filters list.
          * @param newFilter The text of the new filter.
          */
-        public addFilter(newFilter : string) : void
-        {
-            if (this.filters().indexOf(newFilter.toLowerCase()) > -1)
-            {
+        public addFilter(newFilter: string): void {
+            if (this.filters().indexOf(newFilter.toLowerCase()) > -1) {
                 return;
             }
 
             var result = this.filters().trim();
-            if (this.filters().length > 0)
-            {
+            if (this.filters().length > 0) {
                 result += " ";
             }
             result += newFilter;
@@ -291,24 +270,19 @@ module TodoTxtJs.View
          * Method to manage the showing/hiding of menu item toolboxs.
          * @param element The item that was toggled by the user.
          */
-        public toggleToolbox(element : HTMLElement) : void
-        {
+        public toggleToolbox(element: HTMLElement): void {
             var selected = false;
             var menuItem = $(element).parent();
             this.options.save();
-            if (menuItem.hasClass("selected"))
-            {
+            if (menuItem.hasClass("selected")) {
 
-                if (menuItem[0].id === 'options')
-                {
+                if (menuItem[0].id === 'options') {
                     this.options.save();
                 }
                 selected = true;
             }
-            else
-            {
-                if (menuItem[0].id === 'export')
-                {
+            else {
+                if (menuItem[0].id === 'export') {
                     this.exporting.fillExportBox();
                 }
             }
@@ -316,8 +290,7 @@ module TodoTxtJs.View
             $(".menuItem").removeClass("selected");
             $(".menuItem .toolbox").hide();
 
-            if (!selected)
-            {
+            if (!selected) {
                 menuItem.addClass("selected");
                 $(".toolbox", menuItem).show();
             }
@@ -329,28 +302,26 @@ module TodoTxtJs.View
          * @param todo The todo object to inspect.
          * @returns true if the Todo should be visible.
          */
-        public isDisplayed(todo: Todo): boolean
-        {
-            if (!this.displayOptions.showCompleted() && todo.completed())
-            {
+        public isDisplayed(todo: Todo): boolean {
+            if (!this.displayOptions.showCompleted() && todo.completed()) {
                 return false;
             }
 
             var testText = todo.text().toLowerCase();
             var filters = this.filters().split(/\s/);
             var result = true;
-            if (this.filtered())
-            {
-                for (var i = 0; i < filters.length && result; i++)
-                {
+            if (this.filtered()) {
+                for (var i = 0; i < filters.length && result; i++) {
                     // Special filters
-                    switch (filters[i])
-                    {
+                    switch (filters[i]) {
                         case "-@":
                             result = (todo.contexts().length == 0);
                             break;
                         case "-+":
                             result = (todo.projects().length == 0);
+                            break;
+                        case "-#":
+                            result = (todo.tags().length == 0);
                             break;
                         default:
                             result = testText.indexOf(filters[i].toLowerCase()) >= 0;
@@ -361,8 +332,7 @@ module TodoTxtJs.View
             return result;
         }
 
-        public onClick_ShowHelp(data?: any, event?: Event): boolean
-        {
+        public onClick_ShowHelp(data?: any, event?: Event): boolean {
             var width = Math.round(window.innerWidth * 0.8);
             var height = Math.round(window.innerHeight * 0.8);
             //this.showHelp(!this.showHelp());
@@ -382,8 +352,7 @@ module TodoTxtJs.View
             return false;
         }
 
-        public onClick_ShowOptions(data?: any, event?: Event): boolean
-        {
+        public onClick_ShowOptions(data?: any, event?: Event): boolean {
             var width = Math.round(window.innerWidth * 0.8);
             var height = Math.round(window.innerHeight * 0.8);
             var self = this;
@@ -391,18 +360,15 @@ module TodoTxtJs.View
             $("#optionsDialog").dialog({
                 modal: true,
                 buttons: {
-                    Done: function ()
-                    {
+                    Done: function () {
                         self.options.save();
                         oldStorage = self.options.storageInfo();
                         $(this).dialog("close");
                     }
                 },
-                close: function (event, ui)
-                {
+                close: function (event, ui) {
                     // Undo storage change
-                    if (oldStorage.name != self.options.storageInfo().name)
-                    {
+                    if (oldStorage.name != self.options.storageInfo().name) {
                         self.options.storageInfo(oldStorage);
                     }
                 },
@@ -421,63 +387,56 @@ module TodoTxtJs.View
          * Splits a list of terms into individual terms.
          * @param val the list of terms.
          */
-        private static _split(val:string ) : string[]
-        {
-            return val.split( /\s+/ );
+        private static _split(val: string): string[] {
+            return val.split(/\s+/);
         }
 
         /**
          * An array of all possible auto-complete values.
          */
-        private _newTodoAutoCompleteValues() : string[]
-        {
+        private _newTodoAutoCompleteValues(): string[] {
             var result = [];
             var contexts = this._todoManager.allContexts();
             var projects = this._todoManager.allProjects();
+            var tags = this._todoManager.allTags();
 
-            for (var i = 0; i < contexts.length; i++)
-            {
+            for (var i = 0; i < contexts.length; i++) {
                 result.push("@" + contexts[i]);
             }
 
-            for (var j = 0; j < projects.length; j++)
-            {
+            for (var j = 0; j < projects.length; j++) {
                 result.push("+" + projects[j]);
+            }
+
+            for (var k = 0; k < tags.length; k++) {
+                result.push("#" + tags[k]);
             }
 
             return result;
         }
 
-        private _getIsFiltered() : boolean
-        {
+        private _getIsFiltered(): boolean {
             return (this.filters() && this.filters().length > 0);
         }
 
-        private _getAllTodos(): Todo[]
-        {
+        private _getAllTodos(): Todo[] {
             return this._todoManager.all();
         }
 
-        private _getAllPriorities(): string[]
-        {
+        private _getAllPriorities(): string[] {
             var hash = {};
-            for (var i = 0; i < this.allTodos().length; i++)
-            {
-                if (this.isDisplayed(this.allTodos()[i]))
-                {
+            for (var i = 0; i < this.allTodos().length; i++) {
+                if (this.isDisplayed(this.allTodos()[i])) {
                     var priority = this.allTodos()[i].priority();
-                    if (priority)
-                    {
+                    if (priority) {
                         hash[priority] = true;
                     }
                 }
             }
 
             var result = [];
-            for(var name in hash)
-            {
-                if (hash.hasOwnProperty(name))
-                {
+            for (var name in hash) {
+                if (hash.hasOwnProperty(name)) {
                     result.push(name);
                 }
             }
@@ -485,26 +444,20 @@ module TodoTxtJs.View
             return result.sort();
         }
 
-        private _getAllProjects() : string[]
-        {
+        private _getAllProjects(): string[] {
             var hash = {};
-            for (var i = 0; i < this.allTodos().length; i++)
-            {
-                if (this.isDisplayed(this.allTodos()[i]))
-                {
+            for (var i = 0; i < this.allTodos().length; i++) {
+                if (this.isDisplayed(this.allTodos()[i])) {
                     var projects = this.allTodos()[i].projects();
-                    for (var j = 0; j < projects.length; j++)
-                    {
+                    for (var j = 0; j < projects.length; j++) {
                         hash[projects[j]] = true;
                     }
                 }
             }
 
             var result = [];
-            for(var name in hash)
-            {
-                if (hash.hasOwnProperty(name))
-                {
+            for (var name in hash) {
+                if (hash.hasOwnProperty(name)) {
                     result.push(name);
                 }
             }
@@ -512,26 +465,53 @@ module TodoTxtJs.View
             return result.sort();
         }
 
-        private _getAllContexts() : string[]
-        {
+        private _getAllContexts(): string[] {
             var hash = {};
-            for (var i = 0; i < this.allTodos().length; i++)
-            {
-                if (this.isDisplayed(this.allTodos()[i]))
-                {
+            for (var i = 0; i < this.allTodos().length; i++) {
+                if (this.isDisplayed(this.allTodos()[i])) {
                     var contexts = this.allTodos()[i].contexts();
-                    for (var j = 0; j < contexts.length; j++)
-                    {
+                    for (var j = 0; j < contexts.length; j++) {
                         hash[contexts[j]] = true;
                     }
                 }
             }
 
             var result = [];
-            for(var name in hash)
-            {
-                if (hash.hasOwnProperty(name))
-                {
+            for (var name in hash) {
+                if (hash.hasOwnProperty(name)) {
+                    result.push(name);
+                }
+            }
+
+            return result.sort();
+        }
+
+        private _getGtdTags(): string[] {
+
+            var result: string[] = [];
+            result.push('inbox');
+            result.push('next');
+            result.push('someday');
+            result.push('maybe');
+            result.push('wait');
+            return result;
+
+        }
+
+        private _getAllTags(): string[] {
+            var hash = {};
+            for (var i = 0; i < this.allTodos().length; i++) {
+                if (this.isDisplayed(this.allTodos()[i])) {
+                    var tags = this.allTodos()[i].tags();
+                    for (var j = 0; j < tags.length; j++) {
+                        hash[tags[j]] = true;
+                    }
+                }
+            }
+
+            var result = [];
+            for (var name in hash) {
+                if (hash.hasOwnProperty(name)) {
                     result.push(name);
                 }
             }
@@ -544,29 +524,23 @@ module TodoTxtJs.View
          * @param term the list of terms to process.
          * @returns the last term in the list.
          */
-        private _extractLast(term:string) : string
-        {
-            return Main._split( term ).pop();
+        private _extractLast(term: string): string {
+            return Main._split(term).pop();
         }
 
-        private _initializeKeyboardShortCuts()
-        {
+        private _initializeKeyboardShortCuts() {
             var _this = this;
-            $(document).bind('keydown', 'n', function(event)
-            {
+            $(document).bind('keydown', 'n', function (event) {
                 event.preventDefault();
                 $(".addTodo Input").focus();
             });
 
-            function help(event)
-            {
+            function help(event) {
                 event.preventDefault();
-                if ($("#help").is(":visible"))
-                {
+                if ($("#help").is(":visible")) {
                     $("#help").dialog("close");
                 }
-                else
-                {
+                else {
                     _this.onClick_ShowHelp();
                 }
             }
@@ -578,18 +552,15 @@ module TodoTxtJs.View
          * Get the options for rendering the HTML contents of the todo.
          * @returns an options object.
          */
-        private _getRenderOptions(): any
-        {
+        private _getRenderOptions(): any {
             var result = new ContentRenderOptions();
             result.shortUrls = this.displayOptions.showShortUrls();
 
             return result;
         }
 
-        private static _parseQueryString()
-        {
-            if (!Main._queryStringParams)
-            {
+        private static _parseQueryString() {
+            if (!Main._queryStringParams) {
                 var params = {},
                     e,
                     a = /\+/g,  // Regex for replacing addition symbol with a space
@@ -597,11 +568,9 @@ module TodoTxtJs.View
                     d = function (s) { return decodeURIComponent(s.replace(a, " ")); },
                     q = window.location.search.substring(1);
 
-                while (e = r.exec(q))
-                {
+                while (e = r.exec(q)) {
                     var value: any = d(e[2]);
-                    if (value === "")
-                    {
+                    if (value === "") {
                         value = true;
                     }
                     params[d(e[1])] = value;
@@ -611,19 +580,15 @@ module TodoTxtJs.View
             }
         }
 
-        private static _writeQueryString()
-        {
+        private static _writeQueryString() {
             var queryString = "?";
             var location = window.location.href;
             location = location.replace(/([#?].*)/, "");
-            for (name in Main._queryStringParams)
-            {
-                if (Main._queryStringParams.hasOwnProperty(name))
-                {
+            for (name in Main._queryStringParams) {
+                if (Main._queryStringParams.hasOwnProperty(name)) {
                     var nameUri = encodeURIComponent(name);
                     var value = Main._queryStringParams[name]
-                    if (value !== "")
-                    {
+                    if (value !== "") {
                         var valueUri = encodeURIComponent(value);
                         queryString += nameUri + '=' + valueUri;
                     }
@@ -632,30 +597,25 @@ module TodoTxtJs.View
 
             var newLocation = location + queryString;
 
-            if (history)
-            {
+            if (history) {
                 history.replaceState(null, null, newLocation);
             }
         }
 
-        public static setQueryString(name: string, value:any)
-        {
+        public static setQueryString(name: string, value: any) {
             Main._parseQueryString();
             Main._queryStringParams[name] = value;
             Main._writeQueryString();
         }
 
-        public static getQueryString(name)
-        {
+        public static getQueryString(name) {
             Main._parseQueryString();
             return Main._queryStringParams[name];
         }
 
-        private _applyQueryString()
-        {
+        private _applyQueryString() {
             var filters = Main.getQueryString("filter");
-            if (filters && filters !== "")
-            {
+            if (filters && filters !== "") {
                 this.filters(filters);
             }
         }
@@ -663,82 +623,80 @@ module TodoTxtJs.View
         /**
          * Initializes the auto-complete functionality.
          */
-        private _initializeAutoComplete() : void
-        {
+        private _initializeAutoComplete(): void {
             var _self = this;
-            $( "#newTodoInput" )
-                // don't navigate away from the field on tab when selecting an item
-                .bind( "keydown", function( event ) {
-                           if ( event.keyCode === $.ui.keyCode.TAB &&
-                               $( this ).data( "ui-autocomplete" ).menu.active ) {
-                               event.preventDefault();
-                           }
-                       })
+            $("#newTodoInput")
+            // don't navigate away from the field on tab when selecting an item
+                .bind("keydown", function (event) {
+                    if (event.keyCode === $.ui.keyCode.TAB &&
+                        $(this).data("ui-autocomplete").menu.active) {
+                        event.preventDefault();
+                    }
+                })
                 .autocomplete({
-                                  minLength: 1,
-                                  source: function( request, response ) {
-                                      // delegate back to autocomplete, but extract the last term
-                                      response( (<any>$.ui.autocomplete).filter(
-                                          _self._newTodoAutoCompleteValues(), _self._extractLast( request.term ) ) );
-                                  },
-                                  focus: function() {
-                                      // prevent value inserted on focus
-                                      return false;
-                                  },
-                                  select: function( event, ui ) {
-                                      var terms = Main._split( this.value );
-                                      // remove the current input
-                                      terms.pop();
-                                      // add the selected item
-                                      terms.push( ui.item.value );
-                                      // add placeholder to get the comma-and-space at the end
-                                      terms.push( "" );
-                                      _self.newTodoText(terms.join( " " ));
-                                      return false;
-                                  }
-                              });
+                    minLength: 1,
+                    source: function (request, response) {
+                        // delegate back to autocomplete, but extract the last term
+                        response((<any>$.ui.autocomplete).filter(
+                            _self._newTodoAutoCompleteValues(), _self._extractLast(request.term)));
+                    },
+                    focus: function () {
+                        // prevent value inserted on focus
+                        return false;
+                    },
+                    select: function (event, ui) {
+                        var terms = Main._split(this.value);
+                        // remove the current input
+                        terms.pop();
+                        // add the selected item
+                        terms.push(ui.item.value);
+                        // add placeholder to get the comma-and-space at the end
+                        terms.push("");
+                        _self.newTodoText(terms.join(" "));
+                        return false;
+                    }
+                });
 
-            $( "#filters" )
-                // don't navigate away from the field on tab when selecting an item
-                .bind( "keydown", function( event ) {
-                           if ( event.keyCode === $.ui.keyCode.TAB &&
-                               $( this ).data( "ui-autocomplete" ).menu.active ) {
-                               event.preventDefault();
-                           }
-                       })
+            $("#filters")
+            // don't navigate away from the field on tab when selecting an item
+                .bind("keydown", function (event) {
+                    if (event.keyCode === $.ui.keyCode.TAB &&
+                        $(this).data("ui-autocomplete").menu.active) {
+                        event.preventDefault();
+                    }
+                })
                 .autocomplete({
-                                  minLength: 1,
-                                  source: function( request, response ) {
-                                      // delegate back to autocomplete, but extract the last term
-                                      response( (<any>$.ui.autocomplete).filter(
-                                          _self._newTodoAutoCompleteValues(), _self._extractLast( request.term ) ) );
-                                  },
-                                  focus: function() {
-                                      // prevent value inserted on focus
-                                      return false;
-                                  },
-                                  select: function( event, ui ) {
-                                      var terms = Main._split( this.value );
-                                      // remove the current input
-                                      terms.pop();
-                                      // add the selected item
-                                      terms.push( ui.item.value );
-                                      // add placeholder to get the comma-and-space at the end
-                                      terms.push( "" );
-                                      _self.filters(terms.join( " " ));
-                                      return false;
-                                  }
-                              });
+                    minLength: 1,
+                    source: function (request, response) {
+                        // delegate back to autocomplete, but extract the last term
+                        response((<any>$.ui.autocomplete).filter(
+                            _self._newTodoAutoCompleteValues(), _self._extractLast(request.term)));
+                    },
+                    focus: function () {
+                        // prevent value inserted on focus
+                        return false;
+                    },
+                    select: function (event, ui) {
+                        var terms = Main._split(this.value);
+                        // remove the current input
+                        terms.pop();
+                        // add the selected item
+                        terms.push(ui.item.value);
+                        // add placeholder to get the comma-and-space at the end
+                        terms.push("");
+                        _self.filters(terms.join(" "));
+                        return false;
+                    }
+                });
         }
 
-        private _initializeNotifications(): void
-        {
+        private _initializeNotifications(): void {
             $.jGrowl.defaults.position = 'bottom-right';
         }
     }
 
 }
 
-var todoTxtView : TodoTxtJs.View.Main = new TodoTxtJs.View.Main();
+var todoTxtView: TodoTxtJs.View.Main = new TodoTxtJs.View.Main();
 ko.applyBindings(todoTxtView, document.head);
 ko.applyBindings(todoTxtView);

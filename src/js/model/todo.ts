@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2013 Martin Gill
+ * Copyright (C) 2013 Martin Gill, Anderson Nishihara
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -44,6 +44,7 @@ module TodoTxtJs
         public contents: KnockoutComputed<string>;
         public projects: KnockoutComputed<string[]>;
         public contexts: KnockoutComputed<string[]>;
+        public tags: KnockoutComputed<string[]>;
         public text : KnockoutComputed<string>;
         public metadata: KnockoutComputed<Array<ITodoMetadata>>;
         public dueDate: KnockoutComputed<Date>;
@@ -54,7 +55,8 @@ module TodoTxtJs
         private _completedDate:string = null;
         private _contents:string = null;
         private _projects:string[] = [];
-        private _contexts:string[] = [];
+        private _contexts: string[] = [];
+        private _tags: string[] = [];
         private _metadata: Array<ITodoMetadata> = [];
 
         private _text: KnockoutObservable<string>;
@@ -70,6 +72,12 @@ module TodoTxtJs
             this._initialiseComputedProperties();
 
             this._parse();
+        }
+
+        public addTag(tag: string) {
+            this._tags.push(tag);
+            var tmp = this._text();
+            this._text(tmp + " #" + tag);
         }
 
         private _initialiseComputedProperties() : void
@@ -196,6 +204,15 @@ module TodoTxtJs
                     {
                         this._parse();
                         return this._contexts;
+                    }
+                });
+
+            this.tags = ko.computed(
+                {
+                    owner: this,
+                    read: (): string[]=> {
+                        this._parse();
+                        return this._tags;
                     }
                 });
 
@@ -375,6 +392,7 @@ module TodoTxtJs
             this._contents = null;
             this._projects = [];
             this._contexts = [];
+            this._tags = [];
 
             if (this._text() === undefined)
             {
@@ -411,6 +429,7 @@ module TodoTxtJs
 
                 this._projects = Todo._findFlags(this._contents, '+');
                 this._contexts = Todo._findFlags(this._contents, '@');
+                this._tags = Todo._findFlags(this._contents, '#');
                 this._metadata = this._findMetadata(this._contents);
             }
         }

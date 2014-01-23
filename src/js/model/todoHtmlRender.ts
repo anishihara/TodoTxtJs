@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2013 Martin Gill
+ * Copyright (C) 2013 Martin Gill, Anderson Nishihara
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -90,6 +90,19 @@ module TodoTxtJs
 
         }
 
+        private static _renderTags(contents: string, options: ContentRenderOptions): string {
+            var formattedMessage = contents;
+            var tagRegex = /(?:\W|^)(\#)([\S_]+[A-Za-z0-9_](?!\S))/ig;
+
+            var replacement = "";
+            replacement += ' <span class="todo-view-tagFlag" onclick="event.stopPropagation(); todoTxtView.addFilter(\'+$2\')">$1</span>';
+            replacement += '<span class="todo-view-tag" onclick="event.stopPropagation(); todoTxtView.addFilter(\'+$2\')">$2</span>';
+
+            formattedMessage = formattedMessage.replace(tagRegex, replacement);
+            return formattedMessage;
+
+        }
+
         private static _renderUrls(contents: string, options: ContentRenderOptions): string
         {
             var formattedMessage = contents;
@@ -170,6 +183,7 @@ module TodoTxtJs
             {
                 formattedMessage = ContentRender._renderContexts(formattedMessage, options);
                 formattedMessage = ContentRender._renderProjects(formattedMessage, options);
+                formattedMessage = ContentRender._renderTags(formattedMessage, options);
                 formattedMessage = ContentRender._renderUrls(formattedMessage, options);
                 formattedMessage = ContentRender._renderDueDate(formattedMessage, options);
                 formattedMessage = ContentRender._renderMetadata(formattedMessage, options);

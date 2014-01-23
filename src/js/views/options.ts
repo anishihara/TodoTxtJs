@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2013 Martin Gill
+ * Copyright (C) 2013 Martin Gill, Anderson Nishihara
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -49,6 +49,9 @@ module TodoTxtJs.View
         public showStorageControls: KnockoutComputed<boolean>;
         public showImport: KnockoutComputed<boolean>;
         public showExport: KnockoutComputed<boolean>;
+
+        public useGtd: KnockoutObservable<boolean>;
+        public useGtdDescription: KnockoutObservable<string>;
 
         public saveOnChange: KnockoutObservable<boolean>;
         public saveOnChangeDescription: KnockoutObservable<string>;
@@ -107,7 +110,10 @@ module TodoTxtJs.View
                       {
                           return this.storageInfo().controls.exports;
                       }
-                   });
+            });
+
+            this.useGtd = ko.observable<boolean>(true);
+            this.useGtdDescription = ko.observable<string>("Use GTD tags: #inbox, #next, #someday, #maybe, #wait.");
 
             this.saveOnChange = ko.observable<boolean>(true);
             this.saveOnChangeDescription = ko.observable<string>("Save changes immediatly after you add/remove/edit a Todo.");
@@ -199,6 +205,11 @@ module TodoTxtJs.View
                 if (options.hasOwnProperty("saveOnChange"))
                 {
                     this.saveOnChange(options.saveOnChange);
+                }
+
+                //
+                if (options.hasOwnProperty("useGtd")) {
+                    this.useGtd(options.useGtd);
                 }
 
                 // Theme

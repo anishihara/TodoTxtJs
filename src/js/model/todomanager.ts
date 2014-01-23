@@ -1,5 +1,5 @@
 /*******************************************************************************
- * Copyright (C) 2013 Martin Gill
+ * Copyright (C) 2013 Martin Gill, Anderson Nishihara
  *
  * Permission is hereby granted, free of charge, to any person obtaining
  * a copy of this software and associated documentation files (the
@@ -87,6 +87,25 @@ module TodoTxtJs
             {
                 if (hash.hasOwnProperty(name))
                 {
+                    result.push(name);
+                }
+            }
+
+            return result;
+        }
+
+        public allTags(): string[] {
+            var hash = {};
+            for (var i = 0; i < this._data().length; i++) {
+                var tags = this._data()[i].tags();
+                for (var j = 0; j < tags.length; j++) {
+                    hash[tags[j]] = true;
+                }
+            }
+
+            var result: string[] = [];
+            for (var name in hash) {
+                if (hash.hasOwnProperty(name)) {
                     result.push(name);
                 }
             }
